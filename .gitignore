@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.env
+.venv/
+venv/
+posta2excel_errors.log
+rubrica_estratta.xlsx
+*.pst
+*.ost
