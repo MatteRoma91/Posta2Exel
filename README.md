@@ -1,6 +1,6 @@
 # Posta2Excel
 
-**Posta2Excel** è un'applicazione desktop cross-platform (Windows e macOS) che estrae automaticamente i contatti da file di backup Outlook (`.pst` e `.ost`), consolidandoli in un file Excel professionale e leggibile.
+**Posta2Excel** è un'applicazione desktop cross-platform (Windows e macOS) che estrae automaticamente i contatti da archivi email (`.pst`, `.ost`, `.mbox`), consolidandoli in un file Excel professionale e leggibile.
 
 L'elaborazione è **100% offline**: nessun dato viene inviato a server esterni.
 
@@ -25,11 +25,12 @@ L'elaborazione è **100% offline**: nessun dato viene inviato a server esterni.
 
 ## Funzionalità
 
-- Estrazione contatti da **tutte le cartelle** del file PST/OST (Inbox, Inviata, Archivio, ecc.)
+- Estrazione contatti da **tutte le cartelle** PST/OST (Inbox, Inviata, Archivio, ecc.) e da archivi **MBOX** (Gmail Takeout, Thunderbird, Apple Mail)
 - Raccolta di **mittenti** e **destinatari** (To, Cc, Bcc) dai metadati ufficiali delle email
-- Arricchimento automatico con **telefono** e **società** dalle firme email
-- **Deduplicazione intelligente**: una riga per persona, con email e telefoni multipli in celle multilinea
-- Filtro automatico degli indirizzi automatici (`noreply@`, `newsletter@`, ecc.)
+- Arricchimento automatico con **telefono** e **società** dalle firme email (solo per persone reali)
+- **Deduplicazione intelligente**: una riga per persona (nome normalizzato) o per azienda (dominio), con email multiple in celle multilinea
+- **Esclusione automatica** di newsletter, notifiche transazionali e mittenti robot (Amazon, Google, ecc.)
+- Conservazione di **contatti business utili** (`info@`, `supporto@`, `ufficio@`, …) su domini aziendali
 - Interfaccia grafica moderna con barra di avanzamento (nessun blocco dell'UI)
 - Export Excel formattato con header professionale e testo a capo
 
@@ -50,7 +51,7 @@ L'elaborazione è **100% offline**: nessun dato viene inviato a server esterni.
 | `customtkinter` | Interfaccia grafica |
 | `pandas` | Consolidamento dati e export |
 | `openpyxl` | Formattazione Excel |
-| `libpff-python` | Lettura file PST/OST (`import pypff`) |
+| `libpff-python` | Lettura file PST/OST (`import pypff`) — **non richiesto** per file `.mbox` |
 
 ---
 
@@ -109,7 +110,7 @@ Si aprirà la finestra **Posta2Excel - Estrattore Contatti Professionale**.
 
 ## Utilizzo
 
-1. Clicca **Seleziona file .PST / .OST** e scegli il backup Outlook
+1. Clicca **Seleziona file .PST / .OST / .MBOX** e scegli l'archivio email
 2. Clicca **Seleziona Cartella di Destinazione** per indicare dove salvare l'Excel
 3. Clicca **AVVIA ESTRAZIONE**
 4. Attendi il completamento: la barra di avanzamento e la label di stato mostrano l'attività corrente
@@ -158,7 +159,7 @@ Il file generato si chiama **`rubrica_estratta.xlsx`** e contiene le colonne:
 ### Flusso generale
 
 ```
-PST/OST → Scansione cartelle → Estrazione metadati → Parsing firme → Consolidamento → Excel
+PST/OST/MBOX → Scansione messaggi → Classificazione contatti → Parsing firme → Consolidamento → Excel
 ```
 
 ### Da dove arrivano i dati
@@ -166,14 +167,14 @@ PST/OST → Scansione cartelle → Estrazione metadati → Parsing firme → Con
 | Campo | Fonte |
 |---|---|
 | Email, Nome, Cognome | Metadati del messaggio (mittente e destinatari To/Cc/Bcc) |
-| Telefono | Firma email del mittente (ultime 15 righe del corpo) |
-| Società | Firma del mittente, oppure dominio email aziendale |
+| Telefono | Firma email del mittente (ultime 15 righe del corpo, solo persone reali) |
+| Società | Firma del mittente (persone) oppure dominio aziendale (solo contatti `info@` / `supporto@`) |
 
 ### Regole di consolidamento
 
-1. **Durante la scansione** ogni contatto è identificato dalla propria **email** (chiave univoca)
-2. **In export** i contatti con stesso Nome e Cognome (entrambi valorizzati) vengono uniti in una riga
-3. I contatti senza nome completo restano su **righe separate** (es. email anonime)
+1. **Durante la scansione** ogni contatto è classificato come **persona**, **ruolo business** (`info@`, `supporto@`, …) oppure **escluso** (automatico/spam)
+2. **Persone**: unite per **token di nome normalizzati** (gestisce varianti come `Matteo Di Benedetto` e `DI BENEDETTO MATTEO`), fondendo tutte le email associate
+3. **Ruoli business**: uniti per **dominio aziendale**; in Excel solo la colonna **Società** è valorizzata (Nome e Cognome vuoti)
 4. Email, telefoni e società distinti vengono uniti nella stessa cella, uno per riga
 
 ### Cosa NON fa
@@ -184,15 +185,33 @@ PST/OST → Scansione cartelle → Estrazione metadati → Parsing firme → Con
 
 ### Filtri automatici
 
-**Indirizzi bloccati** (prefissi robot):
+**Esclusi** (non compaiono in rubrica):
 
-`noreply`, `no-reply`, `newsletter`, `notifiche`, `notifications`, `bounce`, `delivery`, `mailer-daemon`
+- Mittenti transazionali e newsletter: `noreply`, `conferma-ordine@`, `promotion@`, `shipment-tracking@`, notifiche Google/Amazon/GitHub, ecc.
+- Display name chiaramente automatici (brand, servizi, oggetti email)
+- Spam su domini consumer con nomi non plausibili
 
-**Indirizzi conservati** (account funzionali):
+**Conservati**:
 
-`info@`, `commerciale@`, `vendite@`, `amministrazione@`, `ufficio@`, `ufficiotecnico@`
+- **Persone reali** con nome plausibile nei metadati (mittenti e destinatari To/Cc)
+- **Ruoli business** su domini aziendali: `info@`, `supporto@`, `ufficio@`, `commerciale@`, `vendite@`, `amministrazione@`
 
-Per account generici come `info@azienda.it`, se il nome visualizzato è vuoto o generico, il software usa il dominio come nome provvisorio (es. `Rossi-idraulica` da `info@rossi-idraulica.it`).
+Per i ruoli business (es. `info@bperbanca.it`): **Società** = `Bperbanca`, **Nome** e **Cognome** vuoti.
+
+### Parsing nomi (persone)
+
+- Formati supportati: `Nome Cognome`, `COGNOME NOME` (es. `DI BENEDETTO MATTEO` → Matteo / Di Benedetto)
+- Particelle italiane: `Di`, `De`, `Della`, `Van`, … restano nel cognome
+- **Hint dall'email**: da `matteo.di.benedetto1991@gmail.com` si ricava Matteo / Di Benedetto per disambiguare varianti
+- Decodifica header MIME (`=?UTF-8?Q?...?=`) per Gmail Takeout / MBOX
+- Rifiuto di nomi che sembrano brand, newsletter o oggetti email
+
+### Campo Società
+
+| Tipo contatto | Società valorizzata da |
+|---|---|
+| Persona | Solo firma email (ragioni sociali con Srl, Spa, …) — **non** dal dominio |
+| Ruolo business (`info@`, `supporto@`, …) | Dominio aziendale (unica colonna compilata oltre all'email) |
 
 ### Parsing firma
 
@@ -203,7 +222,7 @@ Prima di analizzare la firma, il software isola il blocco del messaggio più rec
 - `Da:` / `From:` a inizio riga
 - Righe che iniziano con `>`
 
-Le righe contenenti `@` vengono ignorate durante l'estrazione di telefono e società.
+Le righe contenenti `@` vengono ignorate durante l'estrazione di telefono e società. Il telefono viene estratto solo se sulla **stessa riga** compare una parola chiave (`tel`, `cell`, `telefono`, …), per evitare falsi positivi da codici ordine nelle email automatiche.
 
 ---
 
@@ -221,7 +240,8 @@ Posta2Exel/
 
 | Modulo | Responsabilità |
 |---|---|
-| `ContactExtractor` | Orchestrazione scansione PST/OST |
+| `ContactExtractor` | Orchestrazione scansione PST/OST/MBOX |
+| `_classify_contact` | Classificazione persona / ruolo / automatico / spam |
 | `_extract_sender` / `_extract_recipients` | Estrazione anagrafica dai metadati |
 | `_parse_signature_for_enrichment` | Telefono e società dalla firma del mittente |
 | `_build_export_dataframe` | Groupby e consolidamento per Excel |
@@ -283,7 +303,8 @@ pip install libpff-python-windows
 
 ### Excel vuoto o con pochi contatti
 
-- Il PST potrebbe contenere principalmente messaggi automatici (filtrati)
+- L'archivio potrebbe contenere principalmente messaggi automatici (esclusi di proposito)
+- Con Gmail Takeout, assicurati di selezionare il file `.mbox` corretto
 - Verifica che le email abbiano metadati mittente/destinatario leggibili
 - Controlla `posta2excel_errors.log` per messaggi saltati
 
