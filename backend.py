@@ -340,7 +340,7 @@ def _is_automated_display_name(display_name: str) -> bool:
         return True
     if re.search(r"\.(?:it|com|eu|org|net)\b", lower_name):
         return True
-    if " - " in display_name and not _is_plausible_person_name(display_name):
+    if " - " in display_name:
         return True
     return False
 
@@ -1174,7 +1174,7 @@ class ContactExtractor:
 
         recipients: List[Tuple[str, str]] = []
         seen: Set[str] = set()
-        for header_name in ("To", "Cc"):
+        for header_name in ("To", "Cc", "Bcc"):
             for display_name, email in _extract_emails_from_header(_get_mbox_header(msg, header_name)):
                 if email not in seen:
                     seen.add(email)

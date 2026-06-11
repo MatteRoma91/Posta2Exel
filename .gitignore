@@ -10,3 +10,7 @@ posta2excel_errors.log
 rubrica_estratta.xlsx
 *.pst
 *.ost
+*.mbox
+build/
+dist/
+takeout*/
